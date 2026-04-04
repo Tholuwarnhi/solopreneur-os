@@ -1,17 +1,20 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router";
 import { updateProfile, updatePassword, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 import { useAuth } from "../../context/AuthContext";
-import { User, Building2, Bell, Lock, Trash2, Save, ChevronRight } from "lucide-react";
+import { User, Building2, Bell, Lock, Trash2, Save, ChevronRight, Mail } from "lucide-react";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import { apiErrorMessage, readResponseJson } from "../../lib/apiResponse";
 
-const TABS = ["Profile", "Business", "Notifications", "Security", "Danger Zone"];
+const TABS = ["Profile", "Business", "Integrations", "Notifications", "Security", "Danger Zone"];
 
 const TAB_ICONS: Record<string, any> = {
   Profile: User,
   Business: Building2,
+  Integrations: Mail,
   Notifications: Bell,
   Security: Lock,
   "Danger Zone": Trash2,
@@ -19,9 +22,13 @@ const TAB_ICONS: Record<string, any> = {
 
 export default function Settings() {
   const { user, logout } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("Profile");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gmailBusy, setGmailBusy] = useState(false);
 
   // Profile
   const [displayName, setDisplayName] = useState(user?.displayName || "");
@@ -76,6 +83,8 @@ export default function Settings() {
         setOverdueAlerts(data.overdueAlerts ?? true);
         setWeeklyReport(data.weeklyReport ?? false);
         setGoalReminders(data.goalReminders ?? true);
+        setGmailConnected(Boolean(data.gmailConnected));
+        setGmailEmail((data.gmailEmail as string) || null);
       }
     };
     load();
@@ -85,6 +94,15 @@ export default function Settings() {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: "", type: "" }), 3000);
   };
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const gmail = searchParams.get("gmail");
+    if (tab === "integrations") setActiveTab("Integrations");
+    if (gmail === "connected") showMessage("Gmail connected. You can send invoices from your address.", "success");
+    if (gmail === "error") showMessage("Could not connect Gmail. Check Google Cloud OAuth client, redirect URI, and server env vars.", "error");
+    if (tab || gmail) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const saveProfile = async () => {
     if (!user) return;
@@ -336,6 +354,107 @@ export default function Settings() {
                   <Save className="w-4 h-4" />
                   {saving ? "Saving..." : "Save Business Info"}
                 </Button>
+              </div>
+            </Card>
+          )}
+
+          {activeTab === "Integrations" && (
+            <Card>
+              <h2 className="font-bold text-lg mb-2" style={{ color: "#0F1B2D" }}>Integrations</h2>
+              <p className="text-sm text-gray-500 mb-6">Connect external services to send invoices and more.</p>
+
+              <div className="border border-gray-200 rounded-xl p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
+                    <Mail className="w-5 h-5 text-gray-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold" style={{ color: "#0F1B2D" }}>Gmail</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Send invoices from your own Gmail address using Google&apos;s secure sign-in.
+                    </p>
+                    {gmailConnected && gmailEmail && (
+                      <p className="text-sm text-green-700 mt-2 font-medium">Connected as {gmailEmail}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {!gmailConnected ? (
+                    <Button
+                      variant="primary"
+                      disabled={gmailBusy}
+                      onClick={async () => {
+                        if (!user) return;
+                        setGmailBusy(true);
+                        try {
+                          const idToken = await auth.currentUser?.getIdToken();
+                          if (!idToken) {
+                            showMessage("Please sign in again.", "error");
+                            return;
+                          }
+                          const resp = await fetch("/api/gmail-oauth-start", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ idToken }),
+                          });
+                          const { data: json, raw } = await readResponseJson<{ url?: string; error?: string }>(resp);
+                          if (!resp.ok || !json?.url) {
+                            showMessage(
+                              apiErrorMessage(json, raw, "Could not start Gmail connection."),
+                              "error"
+                            );
+                            return;
+                          }
+                          window.location.href = json.url;
+                        } catch (e: any) {
+                          showMessage(e?.message || "Connection failed.", "error");
+                        } finally {
+                          setGmailBusy(false);
+                        }
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      {gmailBusy ? "Redirecting..." : "Connect Gmail"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      disabled={gmailBusy}
+                      onClick={async () => {
+                        if (!user) return;
+                        if (!window.confirm("Disconnect Gmail? Invoice sends will use the app relay until you connect again.")) return;
+                        setGmailBusy(true);
+                        try {
+                          const idToken = await auth.currentUser?.getIdToken();
+                          if (!idToken) {
+                            showMessage("Please sign in again.", "error");
+                            return;
+                          }
+                          const resp = await fetch("/api/gmail-disconnect", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ idToken }),
+                          });
+                          const { data: json, raw } = await readResponseJson<{ error?: string }>(resp);
+                          if (!resp.ok) {
+                            showMessage(apiErrorMessage(json, raw, "Could not disconnect."), "error");
+                            return;
+                          }
+                          setGmailConnected(false);
+                          setGmailEmail(null);
+                          showMessage("Gmail disconnected.", "success");
+                        } catch (e: any) {
+                          showMessage(e?.message || "Disconnect failed.", "error");
+                        } finally {
+                          setGmailBusy(false);
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-gray-700 hover:bg-gray-800"
+                    >
+                      {gmailBusy ? "Working..." : "Disconnect Gmail"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
           )}

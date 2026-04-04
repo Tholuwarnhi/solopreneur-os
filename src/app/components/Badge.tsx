@@ -14,4 +14,9 @@ export default function Badge({ children, variant = 'info', className = '' }: Ba
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${variants[varia
+      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${variants[variant]} ${className}`.trim()}
+    >
+      {children}
+    </span>
+  );
+}
