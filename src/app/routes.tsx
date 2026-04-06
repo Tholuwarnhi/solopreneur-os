@@ -9,6 +9,8 @@ import Projects from "./pages/Projects";
 import Invoice from "./pages/Invoice";
 import Goals from "./pages/Goals";
 import Settings from "./pages/Settings";
+import DocumentScanner from "./pages/DocumentScanner";
+import SignaturePad from "./pages/SignaturePad";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: Login },
@@ -21,6 +23,8 @@ export const router = createBrowserRouter([
       { path: "clients", Component: Clients },
       { path: "projects", Component: Projects },
       { path: "invoice", Component: Invoice },
+      { path: "scanner", Component: DocumentScanner },
+      { path: "signature", Component: SignaturePad },
       { path: "goals", Component: Goals },
       { path: "settings", Component: Settings },
     ],

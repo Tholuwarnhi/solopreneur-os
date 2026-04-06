@@ -12,6 +12,8 @@ import {
   Menu,
   X,
   LogOut,
+  Camera,
+  Pen,
 } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 
@@ -21,6 +23,8 @@ const navItems = [
   { path: '/clients', label: 'Clients', icon: Users },
   { path: '/projects', label: 'Projects', icon: Briefcase },
   { path: '/invoice', label: 'Invoices', icon: FileText },
+  { path: '/scanner', label: 'Scanner', icon: Camera },
+  { path: '/signature', label: 'Signatures', icon: Pen },
   { path: '/goals', label: 'Goals', icon: Target },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
