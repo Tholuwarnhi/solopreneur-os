@@ -267,30 +267,24 @@ export default function Invoice() {
         sentAt: new Date()
       });
 
-      // Here you would integrate with email service
-      // For now, we'll just copy email to clipboard
-      if (invoice.clientEmail) {
-        const emailBody = `Dear ${invoice.clientName},
+      // Multiple email options
+      const emailBody = `
+Dear ${invoice.clientName},
 
-Please find attached invoice ${invoice.invoiceNumber} for your records.
+Please find invoice ${invoice.invoiceNumber} for your records.
 
 Invoice Details:
-- Amount: ${CURRENCIES.find(c => c.code === invoice.currency)?.symbol}${invoice.total.toFixed(2)}
-- Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}
+- Issue Date: ${invoice.issueDate}
+- Due Date: ${invoice.dueDate}
+- Total Amount: ${CURRENCIES.find(c => c.code === invoice.currency)?.symbol}${invoice.total.toFixed(2)}
 
-You can view the full invoice in your client portal.
+You can view the full invoice in our system or download the PDF version.
 
-Best regards`;
-        
-        await navigator.clipboard.writeText(`To: ${invoice.clientEmail}\nSubject: Invoice ${invoice.invoiceNumber}\n\n${emailBody}`);
-      }
-    } catch (error) {
-      console.error('Error sending invoice:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+Thank you for your business!
 
+Best regards,
+${user?.displayName || 'Solopreneur OS'}
+`.trim();
   const markAsPaid = async (invoiceId: string) => {
     try {
       await updateDoc(doc(db, "invoices", invoiceId), {
