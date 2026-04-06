@@ -58,24 +58,41 @@ export default function DocumentScanner() {
           const image = new Image();
           image.onload = async () => {
             try {
-              // Use Tesseract.js with proper configuration
-              const worker = await Tesseract.createWorker('eng', 1, {
-                logger: (m) => {
-                  if (m.status === 'recognizing text') {
-                    setCurrentProgress(Math.round(m.progress * 100));
+              // Create canvas from image
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                throw new Error('Could not get canvas context');
+              }
+              
+              canvas.width = image.width;
+              canvas.height = image.height;
+              ctx.drawImage(image, 0, 0);
+              
+              // Use Tesseract with canvas
+              const result = await Tesseract.recognize(
+                canvas,
+                'eng',
+                {
+                  logger: (m) => {
+                    if (m.status === 'recognizing text') {
+                      setCurrentProgress(Math.round(m.progress * 100));
+                    }
                   }
                 }
-              });
-              
-              const result = await worker.recognize(image);
-              await worker.terminate();
+              );
 
               resolve({
                 text: result.data.text,
                 confidence: result.data.confidence,
-                words: result.data.words
+                words: result.data.words.map((word: any) => ({
+                  text: word.text,
+                  bbox: word.bbox,
+                  confidence: word.confidence
+                }))
               });
             } catch (error) {
+              console.error('Tesseract error:', error);
               reject(error);
             }
           };
@@ -127,7 +144,7 @@ export default function DocumentScanner() {
         setCurrentProgress(Math.round((i / files.length) * 100));
 
         try {
-          // Process with Tesseract.js (free OCR)
+          // Process with Tesseract.js
           const ocrResult = await processFile(file);
           
           // Create Word document
@@ -150,7 +167,7 @@ export default function DocumentScanner() {
           const errorDoc: ProcessedDocument = {
             id: Date.now().toString() + i,
             originalFile: file,
-            extractedText: `Error processing file: ${error}`,
+            extractedText: `Error processing file: ${error instanceof Error ? error.message : 'Unknown error'}`,
             confidence: 0,
             processedAt: new Date()
           };
@@ -209,6 +226,12 @@ export default function DocumentScanner() {
     if (confidence >= 80) return <Check className="w-4 h-4 text-green-600" />;
     if (confidence >= 60) return <AlertCircle className="w-4 h-4 text-yellow-600" />;
     return <AlertCircle className="w-4 h-4 text-red-600" />;
+  };
+
+  const getConfidenceDescription = (confidence: number) => {
+    if (confidence >= 80) return 'High quality - Text is clearly readable';
+    if (confidence >= 60) return 'Medium quality - Some text may be unclear';
+    return 'Low quality - Text may be difficult to read or contains errors';
   };
 
   return (
@@ -354,6 +377,9 @@ export default function DocumentScanner() {
                     {getConfidenceIcon(doc.confidence)}
                     <span className={`text-sm font-medium ${getConfidenceColor(doc.confidence)}`}>
                       {Math.round(doc.confidence)}% confidence
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      - {getConfidenceDescription(doc.confidence)}
                     </span>
                   </div>
                 </div>

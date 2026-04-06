@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, addDoc, doc, updateDoc, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "../../context/AuthContext";
-import { Plus, Download, Send, Trash2, Edit2, Check, X, Eye, FileText, Calendar, DollarSign, User } from "lucide-react";
+import { Plus, Download, Send, Trash2, Edit2, Check, X, Eye, FileText, Calendar, DollarSign, User, Pen } from "lucide-react";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Button from "../components/Button";
@@ -33,6 +33,8 @@ interface Invoice {
   dueDate: string;
   notes?: string;
   paymentMethod?: string;
+  signatureData?: string;
+  receiptGenerated?: boolean;
   createdAt: Date;
 }
 
@@ -80,6 +82,7 @@ export default function Invoice() {
     notes: '',
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    signatureData: '',
   });
 
   useEffect(() => {
@@ -189,6 +192,69 @@ export default function Invoice() {
       pdf.save(`invoice-${invoiceId}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
+    }
+  };
+
+  const generateReceipt = async (invoice: Invoice) => {
+    try {
+      const receiptData = {
+        userId: user?.uid,
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        clientName: invoice.clientName,
+        clientEmail: invoice.clientEmail,
+        amount: invoice.total,
+        currency: invoice.currency,
+        paymentDate: new Date().toISOString(),
+        receiptNumber: `REC-${Date.now()}`,
+        createdAt: new Date()
+      };
+
+      // Save receipt to Firestore
+      await addDoc(collection(db, "receipts"), receiptData);
+
+      // Update invoice to mark receipt as generated
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        receiptGenerated: true
+      });
+
+      // Add to finance as income
+      await addDoc(collection(db, "finance"), {
+        userId: user?.uid,
+        type: 'income',
+        category: 'Invoice Payment',
+        amount: invoice.total,
+        currency: invoice.currency,
+        description: `Payment for invoice ${invoice.invoiceNumber}`,
+        date: new Date().toISOString(),
+        invoiceId: invoice.id,
+        createdAt: new Date()
+      });
+
+      // Generate receipt PDF
+      const pdf = new jsPDF();
+      pdf.setFontSize(20);
+      pdf.text('PAYMENT RECEIPT', 105, 20, { align: 'center' });
+      pdf.setFontSize(12);
+      pdf.text(`Receipt Number: ${receiptData.receiptNumber}`, 20, 40);
+      pdf.text(`Invoice Number: ${invoice.invoiceNumber}`, 20, 50);
+      pdf.text(`Client: ${invoice.clientName}`, 20, 60);
+      pdf.text(`Amount: ${CURRENCIES.find(c => c.code === invoice.currency)?.symbol}${invoice.total.toFixed(2)}`, 20, 70);
+      pdf.text(`Payment Date: ${new Date().toLocaleDateString()}`, 20, 80);
+      
+      pdf.save(`receipt-${invoice.id}.pdf`);
+    } catch (error) {
+      console.error('Error generating receipt:', error);
+    }
+  };
+
+  const loadSignatureFromStorage = () => {
+    const saved = localStorage.getItem('savedSignatures');
+    if (saved) {
+      const signatures = JSON.parse(saved);
+      if (signatures.length > 0) {
+        setForm({ ...form, signatureData: signatures[0].dataUrl });
+      }
     }
   };
 
@@ -339,7 +405,7 @@ Best regards`;
               </div>
               <div className="flex gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => {
                     setEditingInvoice(invoice);
@@ -353,36 +419,51 @@ Best regards`;
                       notes: invoice.notes || '',
                       issueDate: invoice.issueDate,
                       dueDate: invoice.dueDate,
+                      signatureData: invoice.signatureData || '',
                     });
                     setShowForm(true);
                   }}
+                  className="rounded-full px-3 py-1"
                 >
-                  <Edit2 size={16} />
+                  <Edit2 size={14} />
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => generatePDF(invoice.id)}
+                  className="rounded-full px-3 py-1"
                 >
-                  <Download size={16} />
+                  <Download size={14} />
                 </Button>
                 {invoice.status === 'draft' && (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => sendInvoice(invoice)}
                     disabled={loading}
+                    className="rounded-full px-3 py-1"
                   >
-                    <Send size={16} />
+                    <Send size={14} />
                   </Button>
                 )}
                 {invoice.status === 'sent' && (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     onClick={() => markAsPaid(invoice.id)}
+                    className="rounded-full px-3 py-1"
                   >
-                    <Check size={16} />
+                    <Check size={14} />
+                  </Button>
+                )}
+                {invoice.status === 'paid' && !invoice.receiptGenerated && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => generateReceipt(invoice)}
+                    className="rounded-full px-3 py-1"
+                  >
+                    <FileText size={14} />
                   </Button>
                 )}
               </div>
@@ -535,9 +616,8 @@ Best regards`;
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Invoice Items</h3>
-                <Button onClick={addItem} variant="outline" size="sm">
-                  <Plus size={16} className="mr-2" />
-                  Add Item
+                <Button onClick={addItem} variant="secondary" size="sm" className="rounded-full px-3 py-1">
+                  <Plus size={14} />
                 </Button>
               </div>
 
@@ -633,6 +713,33 @@ Best regards`;
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 className="w-full p-3 border rounded-lg h-24"
               />
+            </div>
+
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Signature</h3>
+                <Button onClick={loadSignatureFromStorage} variant="secondary" size="sm" className="rounded-full px-3 py-1">
+                  <Pen size={14} />
+                </Button>
+              </div>
+              {form.signatureData ? (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <img src={form.signatureData} alt="Signature" className="h-16 object-contain" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setForm({ ...form, signatureData: '' })}
+                    className="mt-2 rounded-full px-3 py-1"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-500">No signature selected</p>
+                  <p className="text-xs text-gray-400 mt-1">Click the pen icon to load your saved signature</p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3">
