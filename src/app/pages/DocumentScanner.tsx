@@ -58,17 +58,17 @@ export default function DocumentScanner() {
           const image = new Image();
           image.onload = async () => {
             try {
-              const result = await Tesseract.recognize(
-                image,
-                'eng',
-                {
-                  logger: (m) => {
-                    if (m.status === 'recognizing text') {
-                      setCurrentProgress(Math.round(m.progress * 100));
-                    }
+              // Use Tesseract.js with proper configuration
+              const worker = await Tesseract.createWorker('eng', 1, {
+                logger: (m) => {
+                  if (m.status === 'recognizing text') {
+                    setCurrentProgress(Math.round(m.progress * 100));
                   }
                 }
-              );
+              });
+              
+              const result = await worker.recognize(image);
+              await worker.terminate();
 
               resolve({
                 text: result.data.text,
@@ -223,17 +223,17 @@ export default function DocumentScanner() {
       </div>
 
       {/* Upload Area */}
-      <Card className="mb-8 p-8">
+      <Card className="mb-8 p-6">
         <div
-          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors bg-gradient-to-br from-blue-50 to-indigo-50"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
-          <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-semibold mb-2">
+          <Upload className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+          <h3 className="text-xl font-semibold mb-2 text-gray-800">
             Drop files here or click to browse
           </h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-6">
             Supports images (JPG, PNG, WebP) and PDF files
           </p>
           <input
@@ -244,7 +244,8 @@ export default function DocumentScanner() {
             onChange={handleFileSelect}
             className="hidden"
           />
-          <Button onClick={() => fileInputRef.current?.click()}>
+          <Button onClick={() => fileInputRef.current?.click()} className="bg-blue-600 hover:bg-blue-700">
+            <Upload className="w-4 h-4 mr-2" />
             Select Files
           </Button>
         </div>
@@ -288,16 +289,16 @@ export default function DocumentScanner() {
               <Button
                 onClick={processAllFiles}
                 disabled={processing || files.length === 0}
-                className="flex items-center gap-2"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-6 py-3"
               >
                 {processing ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
                     Processing... {currentProgress}%
                   </>
                 ) : (
                   <>
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-5 h-5 mr-2" />
                     Extract Text & Convert to Word
                   </>
                 )}

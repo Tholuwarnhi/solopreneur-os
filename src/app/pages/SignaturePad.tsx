@@ -337,27 +337,30 @@ export default function SignaturePad() {
           {/* Signature Type Selection */}
           <div className="flex gap-2 mb-4">
             <Button
-              variant={signatureType === 'draw' ? 'default' : 'outline'}
+              variant={signatureType === 'draw' ? 'default' : 'secondary'}
               size="sm"
               onClick={() => setSignatureType('draw')}
+              className="flex items-center gap-1"
             >
-              <Pen className="w-4 h-4 mr-2" />
+              <Pen className="w-4 h-4" />
               Draw
             </Button>
             <Button
-              variant={signatureType === 'type' ? 'default' : 'outline'}
+              variant={signatureType === 'type' ? 'default' : 'secondary'}
               size="sm"
               onClick={() => setSignatureType('type')}
+              className="flex items-center gap-1"
             >
-              <Type className="w-4 h-4 mr-2" />
+              <Type className="w-4 h-4" />
               Type
             </Button>
             <Button
-              variant={signatureType === 'upload' ? 'default' : 'outline'}
+              variant={signatureType === 'upload' ? 'default' : 'secondary'}
               size="sm"
               onClick={() => setSignatureType('upload')}
+              className="flex items-center gap-1"
             >
-              <Upload className="w-4 h-4 mr-2" />
+              <Upload className="w-4 h-4" />
               Upload
             </Button>
           </div>
